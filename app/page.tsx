@@ -176,6 +176,8 @@ export default function ImpostorGame() {
   const [inputWord, setInputWord] = useState("")
   const [impostorRevealed, setImpostorRevealed] = useState(false)
   const [wordHidden, setWordHidden] = useState(false)
+  const [impostorCount, setImpostorCount] = useState(1)
+  const [impostors, setImpostors] = useState<string[]>([])
 
   const generateRandomWord = () => {
     setInputWord(getRandomWord())
@@ -186,13 +188,40 @@ export default function ImpostorGame() {
     setWordHidden(!wordHidden)
   }
 
+  const processDuplicateNames = (names: string[]): string[] => {
+    const nameCounts: Record<string, number> = {}
+    const result: string[] = []
+    
+    for (const name of names) {
+      if (nameCounts[name] === undefined) {
+        nameCounts[name] = 0
+      }
+      nameCounts[name]++
+    }
+    
+    const nameOccurrences: Record<string, number> = {}
+    for (const name of names) {
+      if (nameCounts[name] > 1) {
+        if (nameOccurrences[name] === undefined) {
+          nameOccurrences[name] = 0
+        }
+        nameOccurrences[name]++
+        result.push(`${name} ${nameOccurrences[name]}`)
+      } else {
+        result.push(name)
+      }
+    }
+    
+    return result
+  }
+
   const startGame = () => {
-    const nameList = inputNames
+    const rawNameList = inputNames
       .split("\n")
       .map((n) => n.trim())
       .filter((n) => n.length > 0)
 
-    if (nameList.length < 3) {
+    if (rawNameList.length < 3) {
       alert("Mínimo 3 jugadores")
       return
     }
@@ -202,13 +231,29 @@ export default function ImpostorGame() {
       return
     }
 
+    const maxImpostors = Math.floor(rawNameList.length / 2)
+    if (impostorCount > maxImpostors) {
+      alert(`Máximo ${maxImpostors} impostores para ${rawNameList.length} jugadores`)
+      return
+    }
+
+    const nameList = processDuplicateNames(rawNameList)
     const shuffledPlayers = [...nameList].sort(() => Math.random() - 0.5)
-    const selectedImpostor = shuffledPlayers[Math.floor(Math.random() * shuffledPlayers.length)]
+    
+    // Select multiple impostors
+    const selectedImpostors: string[] = []
+    const availablePlayers = [...shuffledPlayers]
+    for (let i = 0; i < impostorCount; i++) {
+      const randomIndex = Math.floor(Math.random() * availablePlayers.length)
+      selectedImpostors.push(availablePlayers[randomIndex])
+      availablePlayers.splice(randomIndex, 1)
+    }
+    
     const selectedStarter = shuffledPlayers[Math.floor(Math.random() * shuffledPlayers.length)]
 
     setPlayers(shuffledPlayers)
     setSecretWord(inputWord.trim())
-    setImpostor(selectedImpostor)
+    setImpostors(selectedImpostors)
     setStarter(selectedStarter)
     setImpostorRevealed(false)
     setPhase("starter")
@@ -243,17 +288,17 @@ export default function ImpostorGame() {
     setPhase("setup")
     setPlayers([])
     setSecretWord("")
-    setImpostor("")
+    setImpostors([])
     setStarter("")
     setCurrentPlayerIndex(0)
     setInputWord("")
     setImpostorRevealed(false)
     setWordHidden(false)
-    // inputNames is NOT reset - names are remembered
+    // inputNames and impostorCount are NOT reset - remembered for next game
   }
 
   const currentPlayer = players[currentPlayerIndex]
-  const isCurrentPlayerImpostor = currentPlayer === impostor
+  const isCurrentPlayerImpostor = impostors.includes(currentPlayer)
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-indigo-900 flex items-center justify-center p-4">
@@ -318,6 +363,24 @@ export default function ImpostorGame() {
                 </div>
               </div>
 
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Cantidad de impostores:</label>
+                <div className="flex gap-2">
+                  {[1, 2, 3].map((num) => (
+                    <Button
+                      key={num}
+                      type="button"
+                      onClick={() => setImpostorCount(num)}
+                      variant={impostorCount === num ? "default" : "outline"}
+                      className={impostorCount !== num ? "bg-transparent" : ""}
+                      size="lg"
+                    >
+                      {num}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
               <Button onClick={startGame} className="w-full" size="lg">
                 Empezar Juego
               </Button>
@@ -337,6 +400,9 @@ export default function ImpostorGame() {
               <Button onClick={continueToGame} className="w-full" size="lg">
                 Continuar
               </Button>
+              <Button onClick={resetGame} variant="ghost" className="w-full" size="sm">
+                Volver al inicio
+              </Button>
             </CardContent>
           </Card>
         )}
@@ -355,6 +421,9 @@ export default function ImpostorGame() {
               </div>
               <Button onClick={revealRole} className="w-full" size="lg">
                 Ver mi rol
+              </Button>
+              <Button onClick={resetGame} variant="ghost" className="w-full" size="sm">
+                Volver al inicio
               </Button>
             </CardContent>
           </Card>
@@ -394,6 +463,9 @@ export default function ImpostorGame() {
               <Button onClick={nextPlayer} className="w-full" size="lg">
                 {currentPlayerIndex < players.length - 1 ? "Siguiente Jugador" : "Finalizar"}
               </Button>
+              <Button onClick={resetGame} variant="ghost" className="w-full" size="sm">
+                Volver al inicio
+              </Button>
             </CardContent>
           </Card>
         )}
@@ -405,7 +477,9 @@ export default function ImpostorGame() {
               <div className="space-y-4">
                 <div className="text-8xl">🎮</div>
                 <h2 className="text-3xl font-bold">¡Todos han visto su rol!</h2>
-                <p className="text-muted-foreground">Ahora comienza la discusión. ¡Encuentren al impostor!</p>
+                <p className="text-muted-foreground">
+                  Ahora comienza la discusión. ¡Encuentren {impostors.length === 1 ? "al impostor" : `a los ${impostors.length} impostores`}!
+                </p>
                 <div className="bg-purple-50 p-4 rounded-lg">
                   <p className="text-sm font-medium">Recordatorio:</p>
                   <p className="text-sm text-muted-foreground">
@@ -414,13 +488,15 @@ export default function ImpostorGame() {
                 </div>
                 {!impostorRevealed ? (
                   <Button onClick={revealImpostor} variant="secondary" className="w-full" size="lg">
-                    Revelar Impostor
+                    Revelar {impostors.length === 1 ? "Impostor" : "Impostores"}
                   </Button>
                 ) : (
                   <div className="bg-red-50 border-2 border-red-200 p-6 rounded-lg space-y-2">
                     <div className="text-6xl">🕵️‍♂️</div>
-                    <p className="text-lg font-medium text-red-800">El impostor era:</p>
-                    <p className="text-4xl font-bold text-red-600">{impostor}</p>
+                    <p className="text-lg font-medium text-red-800">
+                      {impostors.length === 1 ? "El impostor era:" : "Los impostores eran:"}
+                    </p>
+                    <p className="text-4xl font-bold text-red-600">{impostors.join(", ")}</p>
                     <p className="text-sm text-muted-foreground mt-2">
                       Palabra secreta: <span className="font-bold">{secretWord}</span>
                     </p>
