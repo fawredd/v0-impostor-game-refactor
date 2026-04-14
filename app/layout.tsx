@@ -28,6 +28,9 @@ export const metadata: Metadata = {
     ],
     apple: "/apple-icon.png",
   },
+  verification:{
+    google: process.env.GOOGLE_SITE_VERIFICATION
+  }
 }
 
 export const viewport: Viewport = {
